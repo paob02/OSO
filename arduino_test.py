@@ -281,56 +281,6 @@ class App(tk.Tk):
 
         self._start_arduino_listener()
 
-    def _fire_red_button(self):
-        """Trigger the same action as pressing keyboard key 9 (röd knapp)."""
-        self.event_generate("<KeyPress-9>")
-
-    def _fire_blue_button(self):
-        """Trigger the same action as pressing keyboard key 8 (blå knapp)."""
-        self.event_generate("<KeyPress-8>")
-
-    def _fire_black_button(self):
-        """Trigger the same action as pressing keyboard key 0 (svart knapp)."""
-        self.event_generate("<KeyPress-0>")
-
-    def _start_arduino_listener(self):
-        if not _SERIAL_AVAILABLE:
-            print("pyserial not installed — Arduino input disabled.")
-            return
-
-        def _listen():
-            import time
-            try:
-                ser = serial.Serial(_ARDUINO_PORT, _ARDUINO_BAUD, timeout=1)
-                print(f"Arduino connected on {_ARDUINO_PORT}")
-            except Exception as e:
-                print(f"Could not open {_ARDUINO_PORT}: {e}")
-                return
-
-            # Map Arduino serial message → fire method
-            actions = {
-                "röd":   self._fire_red_button,    # pin 7 → key 9
-                "blå":   self._fire_blue_button,   # pin 4 → key 8
-                "svart": self._fire_black_button,  # pin 2 → key 0
-            }
-            # Debounce: ignore repeated messages within 500 ms of the last fire
-            last_fired = {btn: 0.0 for btn in actions}
-
-            while True:
-                try:
-                    line = ser.readline().decode("utf-8", errors="ignore").strip()
-                    if line in actions:
-                        now = time.monotonic()
-                        if now - last_fired[line] > 0.5:
-                            last_fired[line] = now
-                            self.after(0, actions[line])
-                except Exception as e:
-                    print(f"Arduino read error: {e}")
-                    break
-            ser.close()
-
-        threading.Thread(target=_listen, daemon=True).start()
-
     def show_page(self, page_class, **kwargs):
         if self.current_page is not None:
             self.current_page.destroy()
@@ -346,6 +296,34 @@ class App(tk.Tk):
 
     def go_next(self):
         self.show_page(self.pages[(self.page_index + 1) % len(self.pages)])
+
+    def _fire_red_button(self):
+        """Trigger the same action as pressing keyboard key 9."""
+        self.event_generate("<KeyPress-9>")
+
+    def _start_arduino_listener(self):
+        if not _SERIAL_AVAILABLE:
+            print("pyserial not installed — Arduino input disabled.")
+            return
+
+        def _listen():
+            try:
+                ser = serial.Serial(_ARDUINO_PORT, _ARDUINO_BAUD, timeout=1)
+                print(f"Arduino connected on {_ARDUINO_PORT}")
+            except Exception as e:
+                print(f"Could not open {_ARDUINO_PORT}: {e}")
+                return
+            while True:
+                try:
+                    line = ser.readline().decode("utf-8", errors="ignore").strip()
+                    if line == "1":
+                        self.after(0, self._fire_red_button)
+                except Exception as e:
+                    print(f"Arduino read error: {e}")
+                    break
+            ser.close()
+
+        threading.Thread(target=_listen, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
