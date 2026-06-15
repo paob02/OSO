@@ -572,7 +572,7 @@ class PlaceholderPage(tk.Frame):
 
         # Navigation buttons — positioned in the gap between dresser and screen bottom
         btn_size = _sc(180, scale)
-        btn_y = int(sh * 0.87)
+        btn_y = int(sh * 0.83)
 
         # Forward: röd knapp → Page4
         fwd_img = Image.open("images/röd knapp.png").convert("RGBA").resize(
@@ -653,8 +653,20 @@ class Page4(tk.Frame):
             width=int(sw * 0.85),
         )
 
-        # Mission object names (one row)
+        # Compute podium geometry first so we can size the panel
         name_y = int(sh * 0.43)
+        pod_orig = Image.open("images/podium.png").convert("RGBA")
+        n_pods = 5
+        pw = int(sw * 0.55 / 9)  # 5 pods + 4 equal gaps → 9 units across 55 % of screen
+        gap = pw
+        ph = int(pod_orig.height * pw / pod_orig.width)
+        pod_img = pod_orig.resize((pw, ph), Image.LANCZOS)
+        self._pod_photo = ImageTk.PhotoImage(pod_img)
+        pod_start_y = int(sh * 0.55)
+        actual_row_w = n_pods * pw + (n_pods - 1) * gap
+        pod_x0 = (sw - actual_row_w) // 2
+
+        # Mission object names (one row)
         for i, name in enumerate(mission):
             x = int(sw * (2 * i + 1) / 10)
             canvas.create_text(
@@ -665,35 +677,13 @@ class Page4(tk.Frame):
                 anchor="center",
             )
 
-        # Five podium images — gap between each equals one podium width
-        pod_orig = Image.open("images/podium.png").convert("RGBA")
-        n_pods = 5
-        pw = int(sw * 0.55 / 9)  # 5 pods + 4 equal gaps → 9 units across 55 % of screen
-        gap = pw
-        ph = int(pod_orig.height * pw / pod_orig.width)
-        pod_img = pod_orig.resize((pw, ph), Image.LANCZOS)
-        self._pod_photo = ImageTk.PhotoImage(pod_img)
-
-        pod_start_y = int(sh * 0.55)
-        actual_row_w = n_pods * pw + (n_pods - 1) * gap
-        pod_x0 = (sw - actual_row_w) // 2
+        # Five podium images
         for i in range(n_pods):
             px = pod_x0 + i * (pw + gap)
             canvas.create_image(px, pod_start_y, anchor="nw", image=self._pod_photo)
 
-        # Labels and arrow below podiums
-        x_minst  = pod_x0 + pw // 2
-        x_storst = pod_x0 + 4 * (pw + gap) + pw // 2
-        label_y  = pod_start_y + ph + _sc(35, scale)
-
-        canvas.create_text(x_minst,  label_y, text="Minst",  font=("OpenDyslexic", _fs(28, scale), "bold"), fill="white", anchor="center")
-        canvas.create_text(x_storst, label_y, text="Störst", font=("OpenDyslexic", _fs(28, scale), "bold"), fill="white", anchor="center")
-
-        canvas.create_line(
-            x_minst + pw // 2 + _sc(15, scale), label_y,
-            x_storst - pw // 2 - _sc(15, scale), label_y,
-            fill="white", width=max(1, _sc(4, scale)), arrow=tk.BOTH, arrowshape=(16, 20, 6),
-        )
+        # Labels and arrow below podiums — white on this page, no panel here
+        _draw_minst_storst(canvas, pw, gap, ph, pod_start_y, pod_x0, scale, fill="white")
 
         # Difficulty indicator — top-right corner
         ind_size = _sc(120, scale)
@@ -719,7 +709,7 @@ class Page4(tk.Frame):
 
         # Navigation buttons
         btn_size = _sc(180, scale)
-        btn_y = int(sh * 0.87)
+        btn_y = int(sh * 0.83)
 
         # Red button ("Klar") — centre
         fwd_img = Image.open("images/röd knapp.png").convert("RGBA").resize(
@@ -803,6 +793,18 @@ def _format_size(m):
     return f"{_full(m)} m"
 
 
+def _draw_transparent_panel(canvas, self_ref, x0, y0, x1, y1, alpha=170):
+    """Draw a semi-transparent white rectangle on the canvas."""
+    w = max(1, int(x1 - x0))
+    h = max(1, int(y1 - y0))
+    panel = Image.new("RGBA", (w, h), (255, 255, 255, alpha))
+    photo = ImageTk.PhotoImage(panel)
+    if not hasattr(self_ref, "_panel_photos"):
+        self_ref._panel_photos = []
+    self_ref._panel_photos.append(photo)
+    canvas.create_image(int(x0), int(y0), anchor="nw", image=photo)
+
+
 def _draw_diff_indicator(canvas, controller, sw):
     scale = controller.scale
     ind_size = _sc(120, scale)
@@ -862,10 +864,10 @@ def _draw_check_content(canvas, self_ref, controller,
         self_ref._obj_photos.append(photo)
         canvas.create_image(cx, img_bot, anchor="s", image=photo)
         canvas.create_text(cx, name_cy, text=name,
-                            font=("OpenDyslexic", _fs(20, scale), "bold"), fill="white", anchor="center")
+                            font=("OpenDyslexic", _fs(20, scale), "bold"), fill="black", anchor="center")
         if i in size_range:
             canvas.create_text(cx, size_cy, text=_format_size(_OBJ_SIZE[name]),
-                                font=("OpenDyslexic", _fs(20, scale)), fill="white", anchor="center")
+                                font=("OpenDyslexic", _fs(20, scale)), fill="black", anchor="center")
 
 
 def _draw_result_circles(canvas, pw, gap, ph, pod_start_y, pod_x0, r,
@@ -895,15 +897,15 @@ def _draw_result_circles(canvas, pw, gap, ph, pod_start_y, pod_x0, r,
     return blink_id
 
 
-def _draw_minst_storst(canvas, pw, gap, ph, pod_start_y, pod_x0, scale):
+def _draw_minst_storst(canvas, pw, gap, ph, pod_start_y, pod_x0, scale, fill="black"):
     x_minst  = pod_x0 + pw // 2
     x_storst = pod_x0 + 4 * (pw + gap) + pw // 2
     label_y  = pod_start_y + ph + _sc(35, scale)
-    canvas.create_text(x_minst,  label_y, text="Minst",  font=("OpenDyslexic", _fs(28, scale), "bold"), fill="white", anchor="center")
-    canvas.create_text(x_storst, label_y, text="Störst", font=("OpenDyslexic", _fs(28, scale), "bold"), fill="white", anchor="center")
+    canvas.create_text(x_minst,  label_y, text="Minst",  font=("OpenDyslexic", _fs(28, scale), "bold"), fill=fill, anchor="center")
+    canvas.create_text(x_storst, label_y, text="Störst", font=("OpenDyslexic", _fs(28, scale), "bold"), fill=fill, anchor="center")
     canvas.create_line(x_minst + pw//2 + _sc(15, scale), label_y,
                        x_storst - pw//2 - _sc(15, scale), label_y,
-                       fill="white", width=max(1, _sc(4, scale)), arrow=tk.BOTH, arrowshape=(16, 20, 6))
+                       fill=fill, width=max(1, _sc(4, scale)), arrow=tk.BOTH, arrowshape=(16, 20, 6))
 
 
 class CheckPage(tk.Frame):
@@ -932,6 +934,14 @@ class CheckPage(tk.Frame):
         (pw, gap, ph, pod_start_y, pod_x0,
          max_img_h, max_img_w, size_cy, name_cy, img_bot, r, pod_photo) = _check_pod_base(sw, sh, scale)
         canvas._pod_photo = pod_photo
+
+        _pad = _sc(100, scale)
+        _draw_transparent_panel(canvas, self,
+                                pod_x0 - _pad,
+                                img_bot - max_img_h - _sc(40, scale),
+                                pod_x0 + 5 * pw + 4 * gap + _pad,
+                                pod_start_y + ph + _fs(28, scale) + _sc(80, scale))
+
         for i in range(5):
             canvas.create_image(pod_x0 + i * (pw + gap), pod_start_y, anchor="nw", image=pod_photo)
 
@@ -956,7 +966,7 @@ class CheckPage(tk.Frame):
 
         btn_size_sm = _sc(180, scale)
         btn_size_lg = _sc(210, scale)
-        btn_y = int(sh * 0.87)
+        btn_y = int(sh * 0.83)
 
         # Tillbaka (blå)
         back_img = Image.open("images/blå knapp.png").convert("RGBA").resize((btn_size_sm, btn_size_sm), Image.LANCZOS)
@@ -1042,6 +1052,14 @@ class CheckResultPage(tk.Frame):
         (pw, gap, ph, pod_start_y, pod_x0,
          max_img_h, max_img_w, size_cy, name_cy, img_bot, r, pod_photo) = _check_pod_base(sw, sh, scale)
         canvas._pod_photo = pod_photo
+
+        _pad = _sc(100, scale)
+        _draw_transparent_panel(canvas, self,
+                                pod_x0 - _pad,
+                                img_bot - max_img_h - _sc(40, scale),
+                                pod_x0 + 5 * pw + 4 * gap + _pad,
+                                pod_start_y + ph + _fs(28, scale) + _sc(80, scale))
+
         for i in range(5):
             canvas.create_image(pod_x0 + i * (pw + gap), pod_start_y, anchor="nw", image=pod_photo)
 
@@ -1058,7 +1076,7 @@ class CheckResultPage(tk.Frame):
         _draw_diff_indicator(canvas, controller, sw)
 
         btn_size = _sc(180, scale)
-        btn_y = int(sh * 0.87)
+        btn_y = int(sh * 0.83)
 
         # Tillbaka (blå) — clears current answer, re-asks
         back_img = Image.open("images/blå knapp.png").convert("RGBA").resize((btn_size, btn_size), Image.LANCZOS)
@@ -1123,6 +1141,14 @@ class FinalPage(tk.Frame):
         (pw, gap, ph, pod_start_y, pod_x0,
          max_img_h, max_img_w, size_cy, name_cy, img_bot, r, pod_photo) = _check_pod_base(sw, sh, scale)
         canvas._pod_photo = pod_photo
+
+        _pad = _sc(100, scale)
+        _draw_transparent_panel(canvas, self,
+                                pod_x0 - _pad,
+                                img_bot - max_img_h - _sc(40, scale),
+                                pod_x0 + 5 * pw + 4 * gap + _pad,
+                                pod_start_y + ph + _fs(28, scale) + _sc(80, scale))
+
         for i in range(5):
             canvas.create_image(pod_x0 + i * (pw + gap), pod_start_y, anchor="nw", image=pod_photo)
 
@@ -1139,7 +1165,7 @@ class FinalPage(tk.Frame):
 
         # "Vill du spela igen?" above the buttons
         btn_size = _sc(210, scale)
-        btn_y = int(sh * 0.87)
+        btn_y = int(sh * 0.83)
         canvas.create_text(
             sw // 2, btn_y - btn_size // 2 - _sc(40, scale),
             text="Vill du spela igen?",
